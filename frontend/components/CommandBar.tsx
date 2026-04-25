@@ -6,7 +6,7 @@ import { AlertTriangle, Mic, Send } from 'lucide-react'
 import { api } from '@/lib/api'
 import { rebuildSummary, composeNotifyMessage } from '@/lib/actionSummary'
 import ActionPlanSheet from '@/components/ActionPlanSheet'
-import type { CommandParseResponse, ParsedAction } from '@/lib/types'
+import type { CommandParseResponse, ConfidenceLevel, ParsedAction } from '@/lib/types'
 
 interface CommandBarProps {
   placeholder?: string
@@ -92,7 +92,7 @@ export default function CommandBar({
 
         return {
           ...action,
-          confidence: 'low',
+          confidence: 'low' as ConfidenceLevel,
           ambiguities: hasProjectAmbiguity
             ? existingAmbiguities
             : [...existingAmbiguities, 'Project not specified.'],
