@@ -72,6 +72,7 @@ export type IntentCategory =
   | 'notify_contacts'
   | 'reassign_task'
   | 'create_project'
+  | 'complete_task'
   | 'query_schedule'
   | 'compound'
   | 'unknown'
