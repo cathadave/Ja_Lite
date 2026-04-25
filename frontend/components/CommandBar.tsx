@@ -351,7 +351,6 @@ export default function CommandBar({
                 message: null,
                 template_name: null,
                 task_candidates: [],
-                contact_candidates: [],
                 confidence: 'high',
                 ambiguities: [],
                 requires_confirmation: true,
