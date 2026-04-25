@@ -1,0 +1,14 @@
+node_modules/
+frontend/node_modules/
+backend/.venv/
+.venv/
+.next/
+frontend/.next/
+.netlify/
+frontend/.netlify/
+*.zip
+.env
+.env.local
+frontend/.env.local
+__pycache__/
+*.pyc
