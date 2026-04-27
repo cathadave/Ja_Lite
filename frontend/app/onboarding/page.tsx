@@ -161,19 +161,23 @@ export default function OnboardingPage() {
         taskPayload
       )
 
-      // 4. Create assignments
+      // 4. Bulk create assignments
+      const allAssignments: { task_id: string; contact_id: string; role: string }[] = []
       for (let i = 0; i < tasks.length; i++) {
         for (const assignment of tasks[i].assignments) {
           const contactId = assignment.contact.isNew
             ? nameToId.get(assignment.contact.name)
             : assignment.contact.id
           if (!contactId) continue
-          await api.post('/assignments/', {
+          allAssignments.push({
             task_id: createdTasks[i].id,
             contact_id: contactId,
             role: assignment.role,
           })
         }
+      }
+      if (allAssignments.length > 0) {
+        await api.post('/assignments/bulk', allAssignments)
       }
 
       // 5. Navigate to the new project

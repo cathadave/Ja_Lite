@@ -31,6 +31,15 @@ def create_assignment(data: AssignmentCreate):
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+@router.post("/bulk", response_model=list[AssignmentResponse], status_code=201)
+def bulk_create_assignments(data: list[AssignmentCreate]):
+    try:
+        return assignment_service.bulk_create_assignments(data)
+    except Exception as exc:
+        logger.error("Bulk create assignments failed: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @router.delete("/{assignment_id}", status_code=204)
 def delete_assignment(assignment_id: str):
     assignment_service.delete_assignment(assignment_id)

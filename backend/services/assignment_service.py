@@ -37,3 +37,29 @@ def create_assignment(data: AssignmentCreate) -> dict:
 
 def delete_assignment(assignment_id: str) -> list:
     return supabase.table(TABLE).delete().eq("id", assignment_id).execute().data
+
+
+def bulk_create_assignments(data: list[AssignmentCreate]) -> list[dict]:
+    if not data:
+        return []
+
+    task_ids = list({str(d.task_id) for d in data})
+    contact_ids = list({str(d.contact_id) for d in data})
+
+    task_rows = supabase.table("tasks").select("id,category").in_("id", task_ids).execute().data
+    contact_rows = supabase.table("contacts").select("id,trade").in_("id", contact_ids).execute().data
+
+    task_categories = {r["id"]: (r.get("category") or "").strip() or None for r in task_rows}
+    contact_trades = {r["id"]: (r.get("trade") or "").strip() or None for r in contact_rows}
+
+    payloads = []
+    for item in data:
+        task_category = task_categories.get(str(item.task_id))
+        contact_trade = contact_trades.get(str(item.contact_id))
+        if task_category and contact_trade and task_category != contact_trade:
+            raise ValueError(
+                f"Trade mismatch: task requires '{task_category}', contact trade is '{contact_trade}'"
+            )
+        payloads.append(item.model_dump(mode="json"))
+
+    return supabase.table(TABLE).insert(payloads).execute().data
