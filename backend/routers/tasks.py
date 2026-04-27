@@ -28,6 +28,24 @@ def create_task(data: TaskCreate):
     return task_service.create_task(data)
 
 
+class StageInitRequest(BaseModel):
+    project_id: str
+    stage_name: str
+
+
+@router.post("/complete-before-stage", response_model=list[TaskResponse])
+def complete_tasks_before_stage(data: StageInitRequest):
+    try:
+        return task_service.complete_tasks_before_stage(data.project_id, data.stage_name)
+    except ValueError as exc:
+        msg = str(exc)
+        if "has no tasks" in msg:
+            logger.error("Stage init 404: %s", msg)
+            raise HTTPException(status_code=404, detail=msg)
+        logger.error("Stage init 400: %s", msg)
+        raise HTTPException(status_code=400, detail=msg)
+
+
 @router.get("/{task_id}", response_model=TaskResponse)
 def get_task(task_id: str):
     task = task_service.get_task(task_id)
