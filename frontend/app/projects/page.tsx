@@ -27,7 +27,13 @@ export default function ProjectsPage() {
       try {
         setError('')
 
-        const projectData = await api.get<ProjectRecord[]>('/projects/')
+        let projectData: ProjectRecord[]
+        try {
+          projectData = await api.get<ProjectRecord[]>('/projects/')
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+          projectData = await api.get<ProjectRecord[]>('/projects/')
+        }
         setProjects(projectData)
 
         const counts: Record<string, number> = {}
