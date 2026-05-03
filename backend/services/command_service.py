@@ -68,6 +68,39 @@ _COMPLETE_TRIGGERS = {
 }
 
 # ---------------------------------------------------------------------------
+# Task alias table — maps common PM shorthand and speech-recognition variants
+# to canonical task name fragments that the fuzzy matcher can resolve.
+# Keys are lowercase; values are full task names as they appear in the DB.
+# ---------------------------------------------------------------------------
+
+_TASK_ALIASES: dict[str, str] = {
+    # Beam pour (includes speech-recognition typo "poor" → "pour")
+    "beam poor":             "Tie Beam, Rebar & Beam Pour",
+    "beam pour":             "Tie Beam, Rebar & Beam Pour",
+    "tie beam":              "Tie Beam, Rebar & Beam Pour",
+    "tie beam pour":         "Tie Beam, Rebar & Beam Pour",
+    "rebar beam":            "Tie Beam, Rebar & Beam Pour",
+    "rebar and beam":        "Tie Beam, Rebar & Beam Pour",
+    # Slab
+    "slab pour":             "Pour Monolithic Slab",
+    "pour slab":             "Pour Monolithic Slab",
+    "concrete pour":         "Pour Monolithic Slab",
+    # Underground electrical
+    "underground electric":  "Underground Electrical / Ufer",
+    "electric underground":  "Underground Electrical / Ufer",
+    "ufer":                  "Underground Electrical / Ufer",
+    # Underground plumbing
+    "underground plumbing":  "Underground Plumbing",
+    "plumbing underground":  "Underground Plumbing",
+    # Block walls
+    "block walls":           "Block Walls & Openings",
+    "block":                 "Block Walls & Openings",
+    # Framing materials
+    "framing material":      "Framing Materials Delivery",
+    "framing materials":     "Framing Materials Delivery",
+}
+
+# ---------------------------------------------------------------------------
 # Date resolution
 # ---------------------------------------------------------------------------
 
@@ -403,6 +436,11 @@ def _notify_everyone(text: str) -> bool:
     return any(phrase in lower for phrase in (
         "everyone", "all affected", "everyone affected",
         "all parties", "notify all", "let everyone",
+        "everybody", "everybody affected", "everybody impacted",
+        "everyone impacted", "all impacted",
+        "affected contacts", "assigned contacts",
+        "appropriate people", "right people",
+        "affected people", "impacted people",
     ))
 
 
@@ -418,6 +456,11 @@ _PROJECT_STOPWORDS = {
 
 _CONTACT_STOPWORDS = {
     "everyone", "everybody", "all", "team", "crew", "them", "all affected",
+    "everybody affected", "everybody impacted", "everyone impacted",
+    "all impacted", "affected contacts", "assigned contacts",
+    "appropriate people", "the appropriate people",
+    "right people", "the right people",
+    "affected people", "impacted people",
 }
 
 _TASK_KEYWORDS = re.compile(
@@ -600,6 +643,11 @@ def _split_complete_fragments(fragment: str) -> list[str]:
     return [p.strip(" ,.-") for p in parts if p.strip(" ,.-")]
 
 
+def _resolve_task_alias(fragment: str) -> str:
+    """Return the canonical task name for known PM shorthand/speech variants, or the original fragment."""
+    return _TASK_ALIASES.get(fragment.lower().strip(), fragment)
+
+
 # ---------------------------------------------------------------------------
 # Summary builders
 # ---------------------------------------------------------------------------
@@ -647,6 +695,7 @@ def _build_reschedule_action(
 
     proj_fragment = _extract_project_fragment(text)
     task_fragment = _extract_task_fragment(text)
+    task_fragment = _resolve_task_alias(task_fragment) if task_fragment else task_fragment
 
     project_id = project_name = None
     if proj_fragment:
@@ -796,6 +845,7 @@ def _build_reassign_action(
 
     proj_fragment = _extract_project_fragment(text)
     task_fragment = _extract_task_fragment(text)
+    task_fragment = _resolve_task_alias(task_fragment) if task_fragment else task_fragment
     contact_fragment = _extract_contact_fragment(text)
 
     project_id = project_name = None
@@ -947,6 +997,7 @@ def _build_complete_task_action(
 
     proj_fragment = _extract_project_fragment(text)
     task_fragment = task_fragment or _extract_complete_fragment(text)
+    task_fragment = _resolve_task_alias(task_fragment) if task_fragment else task_fragment
 
     project_id = project_name = None
     if proj_fragment:
@@ -1075,17 +1126,27 @@ def parse_command(raw_input: str, project_id: Optional[str] = None) -> CommandPa
     actions: list[ParsedAction] = []
 
     if primary == IntentCategory.reschedule_task:
-        actions.append(_build_reschedule_action(text, projects, tasks))
+        reschedule_action = _build_reschedule_action(text, projects, tasks)
+        actions.append(reschedule_action)
         if _has_notify_component(text):
-            actions.append(_build_notify_action(text, projects, contacts, channel))
+            notify_action = _build_notify_action(text, projects, contacts, channel)
+            if not notify_action.project_id and reschedule_action.project_id:
+                notify_action.project_id = reschedule_action.project_id
+                notify_action.project_name = reschedule_action.project_name
+            actions.append(notify_action)
 
     elif primary == IntentCategory.notify_contacts:
         actions.append(_build_notify_action(text, projects, contacts, channel))
 
     elif primary == IntentCategory.reassign_task:
-        actions.append(_build_reassign_action(text, projects, tasks, contacts))
+        reassign_action = _build_reassign_action(text, projects, tasks, contacts)
+        actions.append(reassign_action)
         if _has_notify_component(text):
-            actions.append(_build_notify_action(text, projects, contacts, channel))
+            notify_action = _build_notify_action(text, projects, contacts, channel)
+            if not notify_action.project_id and reassign_action.project_id:
+                notify_action.project_id = reassign_action.project_id
+                notify_action.project_name = reassign_action.project_name
+            actions.append(notify_action)
 
     elif primary == IntentCategory.create_project:
         actions.append(_build_create_project_action(text, projects, templates))
