@@ -6,6 +6,7 @@
  */
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'
+const DEMO_API_KEY = process.env.NEXT_PUBLIC_DEMO_API_KEY
 const DEFAULT_TIMEOUT_MS = 30000
 
 async function request<T>(path: string, options?: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
@@ -19,6 +20,10 @@ async function request<T>(path: string, options?: RequestInit, timeoutMs = DEFAU
     Pragma: 'no-cache',
     Expires: '0',
     ...(options?.headers as Record<string, string> | undefined),
+  }
+
+  if (DEMO_API_KEY) {
+    headers['X-API-Key'] = DEMO_API_KEY
   }
 
   if (options?.body) {
