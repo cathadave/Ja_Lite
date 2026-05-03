@@ -1118,6 +1118,42 @@ def execute_actions(actions: list) -> dict:
                 results.append(result_entry)
                 _log_execution_result(action, result_entry, task_id_override=task_id)
 
+        elif intent == "reassign_task":
+            result_entry = {
+                "intent": "reassign_task",
+                "success": False,
+                "message": (
+                    "Task reassignment is not yet available from voice commands. "
+                    "Please reassign from the task detail view inside the project."
+                ),
+            }
+            results.append(result_entry)
+            _log_execution_result(action, result_entry)
+
+        elif intent == "create_project":
+            result_entry = {
+                "intent": "create_project",
+                "success": False,
+                "message": (
+                    "Creating a new project from voice commands is not yet available. "
+                    "Please use the New Project button in the Projects tab."
+                ),
+            }
+            results.append(result_entry)
+            _log_execution_result(action, result_entry)
+
+        elif intent == "query_schedule":
+            result_entry = {
+                "intent": "query_schedule",
+                "success": False,
+                "message": (
+                    "Schedule queries from voice commands are not yet available. "
+                    "Please open the project directly to view its schedule."
+                ),
+            }
+            results.append(result_entry)
+            _log_execution_result(action, result_entry)
+
         else:
             print(f"[execution] unsupported intent: {intent}")
             result_entry = {
