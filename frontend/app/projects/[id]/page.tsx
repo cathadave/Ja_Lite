@@ -17,6 +17,10 @@ type EditableTask = TaskRecord & {
   originalEndInput: string
 }
 
+interface AssignmentRow     { id: string; task_id: string; contact_id: string; role: string }
+interface ContactSummary    { id: string; name: string; company: string | null }
+interface AssignmentDisplay { name: string; company: string | null; role: string }
+
 function toDateInput(value?: string | null): string {
   if (!value) return ''
   return value.slice(0, 10)
@@ -78,6 +82,7 @@ export default function ProjectDetailPage() {
   const [completeError, setCompleteError] = useState('')
   const [isCompleting, setIsCompleting] = useState(false)
   const [hideCompleted, setHideCompleted] = useState(false)
+  const [assignmentMap, setAssignmentMap] = useState<Record<string, AssignmentDisplay[]>>({})
 
   const loadProjectData = useCallback(async () => {
     if (!projectId) return
@@ -106,6 +111,28 @@ export default function ProjectDetailPage() {
           originalEndInput: toDateInput(task.scheduled_end),
         }))
       )
+
+      // Fetch assignment + contact data for display — non-critical, page works without it
+      try {
+        const [allAssignments, allContacts] = await Promise.all([
+          api.get<AssignmentRow[]>('/assignments/'),
+          api.get<ContactSummary[]>('/contacts/'),
+        ])
+        const taskIdSet = new Set(sortedTasks.map((t) => t.id))
+        const contactById: Record<string, ContactSummary> = {}
+        for (const c of allContacts) contactById[c.id] = c
+        const aMap: Record<string, AssignmentDisplay[]> = {}
+        for (const a of allAssignments) {
+          if (!taskIdSet.has(a.task_id)) continue
+          const contact = contactById[a.contact_id]
+          if (!contact) continue
+          if (!aMap[a.task_id]) aMap[a.task_id] = []
+          aMap[a.task_id].push({ name: contact.name, company: contact.company, role: a.role })
+        }
+        setAssignmentMap(aMap)
+      } catch {
+        // Assignment visibility failed — task schedule and editing remain fully functional
+      }
     } catch (err) {
       console.error('Failed to load project detail page:', err)
       setProject(null)
@@ -409,6 +436,33 @@ export default function ProjectDetailPage() {
                         <User size={11} />
                         Task ID: {task.id.slice(0, 8)}
                       </span>
+                    </div>
+
+                    <div className="mt-2">
+                      {(assignmentMap[task.id]?.length ?? 0) > 0 ? (
+                        <div className="flex flex-col gap-0.5">
+                          {assignmentMap[task.id].map((a, i) => (
+                            <button
+                              key={i}
+                              onClick={() => router.push('/contacts')}
+                              className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-200 transition-colors text-left"
+                            >
+                              <User size={10} className="flex-shrink-0 text-orange-300/60" />
+                              <span>{a.name}</span>
+                              {a.company && <span className="text-slate-500">· {a.company}</span>}
+                              <span className="text-slate-500">· {a.role}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => router.push('/contacts')}
+                          className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-400 transition-colors"
+                        >
+                          <User size={10} className="flex-shrink-0" />
+                          No contacts assigned — view Contacts
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
