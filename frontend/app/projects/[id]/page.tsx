@@ -1,10 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertCircle, CheckCircle, Circle, Clock, Save, User } from 'lucide-react'
+import { AlertCircle, CheckCircle, Circle, Clock, Save, User, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import PageHeader from '@/components/PageHeader'
 import CommandBar from '@/components/CommandBar'
+import { createPortal } from 'react-dom'
 import { api } from '@/lib/api'
 import type { ProjectRecord, TaskRecord } from '@/lib/types'
 
@@ -18,7 +19,7 @@ type EditableTask = TaskRecord & {
 }
 
 interface AssignmentRow     { id: string; task_id: string; contact_id: string; role: string }
-interface ContactSummary    { id: string; name: string; company: string | null }
+interface ContactSummary    { id: string; name: string; company: string | null; trade: string | null }
 interface AssignmentDisplay { name: string; company: string | null; role: string }
 
 function toDateInput(value?: string | null): string {
@@ -83,6 +84,11 @@ export default function ProjectDetailPage() {
   const [isCompleting, setIsCompleting] = useState(false)
   const [hideCompleted, setHideCompleted] = useState(false)
   const [assignmentMap, setAssignmentMap] = useState<Record<string, AssignmentDisplay[]>>({})
+  const [allContacts, setAllContacts] = useState<ContactSummary[]>([])
+  const [pickerTaskId, setPickerTaskId] = useState<string | null>(null)
+  const [pickerRole, setPickerRole] = useState('lead')
+  const [isAssigning, setIsAssigning] = useState(false)
+  const [assignError, setAssignError] = useState('')
 
   const loadProjectData = useCallback(async () => {
     if (!projectId) return
@@ -130,7 +136,9 @@ export default function ProjectDetailPage() {
           aMap[a.task_id].push({ name: contact.name, company: contact.company, role: a.role })
         }
         setAssignmentMap(aMap)
-      } catch {
+        setAllContacts(allContacts)
+      } catch (assignErr) {
+        console.error('[assignments] fetch failed:', assignErr)
         // Assignment visibility failed — task schedule and editing remain fully functional
       }
     } catch (err) {
@@ -260,6 +268,20 @@ export default function ProjectDetailPage() {
     }
   }
 
+  async function assignContact(taskId: string, contactId: string, role: string) {
+    setIsAssigning(true)
+    setAssignError('')
+    try {
+      await api.post('/assignments/', { task_id: taskId, contact_id: contactId, role })
+      setPickerTaskId(null)
+      await loadProjectData()
+    } catch (err) {
+      setAssignError(err instanceof Error ? err.message : 'Could not assign contact.')
+    } finally {
+      setIsAssigning(false)
+    }
+  }
+
   const projectTitle = project?.name || 'Project'
 
   const pendingCount = useMemo(
@@ -271,6 +293,15 @@ export default function ProjectDetailPage() {
     () => hideCompleted ? tasks.filter((task) => task.status !== 'completed') : tasks,
     [tasks, hideCompleted]
   )
+
+  const pickerTask = pickerTaskId ? (tasks.find(t => t.id === pickerTaskId) ?? null) : null
+  const pickerCat = pickerTask?.category?.toLowerCase().trim() || null
+  const pickerContacts = pickerTask
+    ? allContacts.filter(c => {
+        const ct = c.trade?.toLowerCase().trim() || null
+        return !pickerCat || (!!ct && ct === pickerCat)
+      })
+    : []
 
   if (loading) {
     return (
@@ -444,7 +475,7 @@ export default function ProjectDetailPage() {
                           {assignmentMap[task.id].map((a, i) => (
                             <button
                               key={i}
-                              onClick={() => router.push('/contacts')}
+                              onClick={() => { setPickerTaskId(task.id); setPickerRole('lead'); setAssignError('') }}
                               className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-200 transition-colors text-left"
                             >
                               <User size={10} className="flex-shrink-0 text-orange-300/60" />
@@ -456,11 +487,11 @@ export default function ProjectDetailPage() {
                         </div>
                       ) : (
                         <button
-                          onClick={() => router.push('/contacts')}
+                          onClick={() => { setPickerTaskId(task.id); setPickerRole('lead'); setAssignError('') }}
                           className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-400 transition-colors"
                         >
                           <User size={10} className="flex-shrink-0" />
-                          No contacts assigned — view Contacts
+                          No contacts assigned — tap to assign
                         </button>
                       )}
                     </div>
@@ -592,6 +623,88 @@ export default function ProjectDetailPage() {
           )}
         </div>
       </div>
+      {pickerTask && createPortal(
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onClick={() => setPickerTaskId(null)}
+        >
+          <div
+            className="mx-4 w-full max-w-md overflow-y-auto rounded-3xl border border-white/10 bg-slate-900"
+            style={{ maxHeight: '80vh' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-orange-300/80">Assign Contact</p>
+                <p className="truncate text-sm font-semibold text-white">{pickerTask.name}</p>
+              </div>
+              <button
+                onClick={() => setPickerTaskId(null)}
+                className="ml-3 flex-shrink-0 text-slate-400 transition-colors hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="px-5 pt-4">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Role</p>
+              <div className="flex flex-wrap gap-2">
+                {(['lead', 'support', 'supplier', 'consulted', 'inspector'] as const).map(r => (
+                  <button
+                    key={r}
+                    onClick={() => setPickerRole(r)}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                      pickerRole === r
+                        ? 'bg-orange-500 text-white'
+                        : 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2 px-5 py-4 pb-8">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                {pickerCat ? `Contacts — ${pickerTask.category}` : 'All Contacts'}
+              </p>
+
+              {assignError && (
+                <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2">
+                  <p className="text-xs text-red-300">{assignError}</p>
+                </div>
+              )}
+
+              {pickerContacts.length === 0 ? (
+                <p className="py-4 text-center text-sm text-slate-400">
+                  No contacts match this task&apos;s trade. Add or update contacts from the Contacts tab.
+                </p>
+              ) : (
+                pickerContacts.map(c => (
+                  <button
+                    key={c.id}
+                    onClick={() => void assignContact(pickerTask.id, c.id, pickerRole)}
+                    disabled={isAssigning}
+                    className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left transition-colors hover:bg-white/10 disabled:opacity-50"
+                  >
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-white/5">
+                      <User size={16} className="text-orange-300" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-white">{c.name}</p>
+                      {c.company && <p className="truncate text-xs text-slate-400">{c.company}</p>}
+                      {c.trade && <p className="truncate text-[11px] text-slate-500">{c.trade}</p>}
+                    </div>
+                    {isAssigning && <span className="flex-shrink-0 text-xs text-slate-500">Saving…</span>}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   )
 }

@@ -54,6 +54,7 @@ export type TaskRecord = {
   template_task_id?: string | null
   name: string
   description?: string | null
+  category?: string | null
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'blocked'
   scheduled_start?: string | null
   scheduled_end?: string | null
