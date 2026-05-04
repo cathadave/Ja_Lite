@@ -127,16 +127,11 @@ def cascade_task_reschedule(
     cascaded_count = 0
 
     if cascade and shift_days != 0 and old_end_str:
-        window_end = (
-            datetime.fromisoformat(old_start_str[:10]).date()
-            + timedelta(days=21)
-        ).isoformat()
         downstream = (
             supabase.table("tasks")
             .select("id, scheduled_start, scheduled_end")
             .eq("project_id", project_id)
             .gt("scheduled_start", old_start_str[:10])
-            .lte("scheduled_start", window_end)
             .neq("status", "completed")
             .neq("status", "cancelled")
             .neq("id", task_id)
